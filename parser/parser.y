@@ -1,5 +1,14 @@
 %{
 
+/**
+* Parser descriptor file for the Simple Language compiler.
+* 
+* MO403 - Implementation of Programming Languages
+*
+* Gustavo Ciotto Pinton
+*
+**/
+
 /* Declarations to avoid annoying warnings */
 /* FLEX functions */
 int yylex (void); 
@@ -59,15 +68,16 @@ program
         ;
 
 function
-        : VOID 
-        function_continuation
-        | IDENTIFIER
-        function_continuation
+        : function_header function_continuation
+        ;
+
+function_header
+        : VOID
+        | identifier
         ;
 
 function_continuation
-        : IDENTIFIER
-        formal_parameters block
+        : identifier formal_parameters block
         ;
 
 block
@@ -99,11 +109,11 @@ labels
         ;
 
 types
-        : TYPES IDENTIFIER ASSIGN type SEMI_COLON identifier_assign_type
+        : TYPES identifier ASSIGN type SEMI_COLON identifier_assign_type
         ;
 
 identifier_assign_type 
-        : IDENTIFIER ASSIGN type SEMI_COLON identifier_assign_type
+        : identifier ASSIGN type SEMI_COLON identifier_assign_type
         | 
         ;
 
@@ -135,11 +145,11 @@ body_statement
         ;
 
 type
-        : IDENTIFIER type_brackets
+        : identifier type_brackets
         ;
 
 type_brackets
-        : OPEN_BRACKET INTEGER CLOSE_BRACKET type_brackets
+        : OPEN_BRACKET integer CLOSE_BRACKET type_brackets
         | 
         ;
 
@@ -159,23 +169,27 @@ formal_parameter
         ;
 
 expression_parameter
-        : VAR identifier_list COLON IDENTIFIER
-        | identifier_list COLON IDENTIFIER
+        : VAR identifier_list COLON identifier
+        | identifier_list COLON identifier
         ;
 
 function_parameter
-        : IDENTIFIER IDENTIFIER formal_parameters
-        | VOID IDENTIFIER formal_parameters
+        : function_parameter_header identifier formal_parameters
+        ;
+
+function_parameter_header
+        : identifier
+        | VOID
         ;
 
 statement
-        : IDENTIFIER COLON unlabeled_statement
+        : identifier COLON unlabeled_statement
         | unlabeled_statement
         | compound
         ;
 
 variable
-        : IDENTIFIER variable_array
+        : identifier variable_array
         ;
 
 variable_array
@@ -202,7 +216,7 @@ function_call_statement
         ;
 
 goto
-        : GOTO IDENTIFIER SEMI_COLON
+        : GOTO identifier SEMI_COLON
         ;
 
 return
@@ -285,22 +299,22 @@ multiplicative_operator
 
 factor
         : variable
-        | INTEGER
+        | integer
         | function_call
         | OPEN_PAREN expression CLOSE_PAREN
         | NOT factor
         ;
 
 function_call
-        : IDENTIFIER OPEN_PAREN expression_list CLOSE_PAREN
+        : identifier OPEN_PAREN expression_list CLOSE_PAREN
         ;
 
 identifier_list
-        : IDENTIFIER comma_identifier
+        : identifier comma_identifier
         ;
 
 comma_identifier
-        : COMMA IDENTIFIER comma_identifier
+        : COMMA identifier comma_identifier
         | 
         ;
 
@@ -312,6 +326,14 @@ expression_list
 comma_expression
         : COMMA expression comma_expression
         | 
+        ;
+
+integer
+        : INTEGER
+        ;
+
+identifier
+        : IDENTIFIER
         ;
 
 %%
