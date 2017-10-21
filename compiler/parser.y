@@ -288,9 +288,9 @@ relational_operator
         ;
 
 simple_expression
-        : PLUS term additive_operator_term %prec UNARY                  { genOpSymbol("+"); genNode(C_SIMPLE_EXPRESSION, 2); }
-        | MINUS term additive_operator_term %prec UNARY                 { genOpSymbol("-"); genNode(C_SIMPLE_EXPRESSION, 2); }
-        | empty term additive_operator_term                             { genNode(C_SIMPLE_EXPRESSION, 2); }
+        : PLUS  { genOpSymbol("+"); } term additive_operator_term %prec UNARY     { genNode(C_SIMPLE_EXPRESSION, 2); }
+        | MINUS { genOpSymbol("-"); } term additive_operator_term %prec UNARY     { genNode(C_SIMPLE_EXPRESSION, 2); }
+        | empty term additive_operator_term                                       { genNode(C_SIMPLE_EXPRESSION, 2); }
         ;
 
 additive_operator_term

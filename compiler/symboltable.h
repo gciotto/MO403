@@ -60,7 +60,7 @@ typedef struct ParameterDesc {
 } ParameterDesc, *ParameterDescPtr;
 
 typedef struct {
-        int displ;
+        int displ, entLabel, retLabel;
         TypeDescrPtr result;
         /* ParameterDescPtr params; */
         struct _symbEntry *params;
@@ -86,7 +86,7 @@ typedef struct _symbEntry {
         } descr;
 } SymbEntry, *SymbEntryPtr;
 
-SymbEntryPtr WRITE_FUNCTION, READ_FUNCTION;
+SymbEntryPtr WRITE_FUNCTION, READ_FUNCTION, FALSE, TRUE;
 TypeDescrPtr INTEGER, BOOLEAN;
 
 void dumpSymbolTable();
@@ -94,16 +94,20 @@ void initSymbolTable();
 SymbEntryPtr searchSte(char* id);
 SymbEntryPtr newSymbEntry(SymbCateg entryCateg, char* id);
 void insertSymbolTable (SymbEntryPtr newEntry);
-void saveSymbTable();
+void saveSymbTable(SymbEntryPtr entryList);
+SymbEntryPtr getSavedState();
+void setSavedState(SymbEntryPtr entry);
 void loadFormalsSymbolTable(SymbEntryPtr entryList);
-void restoreSymbTable();
+void restoreSymbTable(SymbEntryPtr entryList);
 void incrCurrentLevel();
 void decrCurrentLevel();
 int getCurrentLevel();
 TypeDescrPtr getType(TreeNodePtr p);
 SymbEntryPtr getFunction(char* id);
 SymbEntryPtr getVariable(char* id);
+SymbEntryPtr searchId(char* id);
 TypeDescrPtr determineType(TreeNodePtr p);
 int nextLabel();
+int compatibleType (TypeDescrPtr t1, TypeDescrPtr t2);
 
 #endif

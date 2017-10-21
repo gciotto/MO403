@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
   if (sh>1) {
     printf("Stack hight: %d; execution aborted\n",sh);
   } else  {
-    dumpTree(getTree(), 0);
+    //dumpTree(getTree(), 0);
     processProgram(getTree()); // generates code
   }
   return 0;

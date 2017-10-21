@@ -6,7 +6,7 @@ bison -d -o parser.c $1  || exit
 
 flex -i -o scanner.c $2 || exit
 
-gcc -std=c99 -pedantic -o compiler *.c || exit
+gcc -g -std=c99 -pedantic -o compiler *.c || exit
 
 set +x
 

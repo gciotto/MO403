@@ -53,10 +53,12 @@ void initSymbolTable() {
         falseEntry->descr.constantDescr = (ConstantDescPtr) malloc (sizeof (ConstantDesc));
         falseEntry->descr.constantDescr->value = 0;
         falseEntry->descr.constantDescr->type  = boolean;
+        FALSE = falseEntry;
 
         trueEntry->descr.constantDescr = (ConstantDescPtr) malloc (sizeof (ConstantDesc));
         trueEntry->descr.constantDescr->value = 1;
         trueEntry->descr.constantDescr->type  = boolean;
+        TRUE = trueEntry;
 
         insertSymbolTable (falseEntry);
         insertSymbolTable (trueEntry);
@@ -77,7 +79,7 @@ void initSymbolTable() {
 
         */
 
-        SymbEntryPtr writeParameterEntry = newSymbEntry(S_PARAMETER, "x");
+        SymbEntryPtr writeParameterEntry = newSymbEntry(S_PARAMETER, "");
         writeParameterEntry->descr.paramDescr = (ParameterDescPtr) malloc (sizeof (ParameterDesc));
         writeParameterEntry->descr.paramDescr->displ = -5;
         writeParameterEntry->descr.paramDescr->pass = P_VALUE;
@@ -87,8 +89,8 @@ void initSymbolTable() {
 
         readEntry->descr.functionDescr = (FunctionDescPtr) malloc (sizeof (FunctionDesc));
         readEntry->descr.functionDescr->displ = -5; /* Return and -4 from function call */
-        readEntry->descr.functionDescr->result = integer;
-        readEntry->descr.functionDescr->params = NULL;
+        readEntry->descr.functionDescr->result = NULL;
+        readEntry->descr.functionDescr->params = writeParameterEntry;
 
         insertSymbolTable (writeEntry);
         insertSymbolTable (readEntry);
@@ -96,7 +98,7 @@ void initSymbolTable() {
         WRITE_FUNCTION = writeEntry;
         READ_FUNCTION = readEntry;
 
-        dumpSymbolTable ();
+        // dumpSymbolTable ();
 }
 
 SymbEntryPtr searchSte(char* id) {
@@ -139,12 +141,25 @@ void insertSymbolTable (SymbEntryPtr newEntry) {
         nextEntry->next = newEntry;
 }
 
-void saveSymbTable() {
+void saveSymbTable(SymbEntryPtr entryList) {
 
+        savedSymbolTableTop = entryList;
+
+        /*
         savedSymbolTableTop = symbolTable;
 
         while (savedSymbolTableTop->next != NULL)
                 savedSymbolTableTop = savedSymbolTableTop->next;
+        */
+}
+
+void setSavedState(SymbEntryPtr entry) {
+        savedSymbolTableTop = entry;
+}
+
+SymbEntryPtr getSavedState() {
+
+        return savedSymbolTableTop;
 }
 
 void loadFormalsSymbolTable(SymbEntryPtr entryList) {
@@ -159,9 +174,9 @@ void loadFormalsSymbolTable(SymbEntryPtr entryList) {
 
 }
 
-void restoreSymbTable() {
+void restoreSymbTable(SymbEntryPtr entryList) {
         /* TODO: free allocated memory */
-        savedSymbolTableTop->next = NULL;
+        entryList->next = NULL;
 }
 
 void incrCurrentLevel() {
@@ -217,7 +232,20 @@ SymbEntryPtr getVariable(char* id) {
         }
 
         return NULL; 
+}
 
+SymbEntryPtr searchId(char* id){
+
+        SymbEntryPtr nextEntry = symbolTable;
+        while (nextEntry != NULL) {
+
+                if (strcmp (id, nextEntry->ident) == 0)
+                        return nextEntry;
+
+                nextEntry = nextEntry->next;
+        }
+
+        return NULL; 
 }
 
 TypeDescrPtr multiDimensionalType (TreeNodePtr p, TypeDescrPtr baseType) {
@@ -256,4 +284,30 @@ TypeDescrPtr determineType(TreeNodePtr p) {
 int nextLabel() {
         label++;
         return label;
+}
+
+int compatibleType (TypeDescrPtr t1, TypeDescrPtr t2) {
+
+        if (t1 == t2)
+                return 1;
+
+        if (t1->size != t2->size || t1->constr != t2->constr)
+                return 0;
+
+        if (t1->constr == t2->constr) {
+
+                switch (t1->constr) {
+                        case T_ARRAY:
+                                if (t1->descr.ArrayType.dimen != t2->descr.ArrayType.dimen)
+                                        return 0;
+
+                                return compatibleType (t1->descr.ArrayType.element, t2->descr.ArrayType.element);
+
+                        case T_FUNCTION:
+                                return 1;
+                }
+        }
+
+
+        return 0;
 }
