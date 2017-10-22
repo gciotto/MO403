@@ -47,8 +47,6 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
 
         insertSymbolTable(func);
 
-        //dumpSymbolTable ();
-
         saveSymbTable(func);
 
         if (ismain) 
@@ -231,7 +229,6 @@ void processStatements (TreeNodePtr p, int variableDispl) {
                 if (statements->comps[0]->categ == C_IDENT) {
                         labelEntry = searchId (statements->comps[0]->str);
                         if (labelEntry == NULL || labelEntry->categ != S_LABEL) {
-                                printf ("2321312\n");
                                 SemanticError(NULL);
                         }
 
@@ -343,54 +340,50 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
         TypeDescrPtr result;
 
         if (functionEntry->categ == S_FUNCTION) {
-                functionParams = functionEntry->descr.functionDescr->params
+                functionParams = functionEntry->descr.functionDescr->params;
                 result = functionEntry->descr.functionDescr->result;
         }
         else {
+                functionParams = functionEntry->descr.paramDescr->type->descr.FunctionType.params;
+                result = functionEntry->descr.paramDescr->type->descr.FunctionType.result;
         }
 
 
-        if (functionEntry != READ_FUNCTION && functionEntry->descr.functionDescr->result != NULL)
-                genCode1("ALOC", functionEntry->descr.functionDescr->result->size, "        result");
+        if (functionEntry != READ_FUNCTION && result != NULL)
+                genCode1("ALOC", result->size, "        result");
 
         while (invertedExpressionList->categ != C_EMPTY) {
 
-                if (functionEntry->categ == S_FUNCTION) {
+                if (functionEntry == WRITE_FUNCTION) {
 
-                        if (functionEntry == WRITE_FUNCTION) {
+                        referenceParameter = P_VALUE;
 
-                                referenceParameter = P_VALUE;
+                        TypeDescrPtr exprType = processExpr(invertedExpressionList);
+                        genCode0 ("PRNT", "");
+                }
+                else if (functionEntry == READ_FUNCTION) {
 
-                                TypeDescrPtr exprType = processExpr(invertedExpressionList);
-                                genCode0 ("PRNT", "");
-                        }
-                        else if (functionEntry == READ_FUNCTION) {
+                        referenceParameter = P_VALUE;
 
-                                referenceParameter = P_VALUE;
-
-                                genCode0 ("READ", "");
-                                readInstr = 1;
-                                TypeDescrPtr exprType = processExpr(invertedExpressionList);
-                                readInstr = 0;
-                        }
-                        else {
-
-                                referenceParameter = functionParams->descr.paramDescr->pass;
-
-                                TypeDescrPtr exprType = processExpr(invertedExpressionList);
-
-                                if (functionParams == NULL) /* The function requires less parameters */
-                                        SemanticError(NULL);
-
-                                if (!compatibleType(exprType, functionParams->descr.paramDescr->type)) {
-                                        SemanticError(NULL);
-                                }
-
-                                functionParams = functionParams->next;
-
-                        }
+                        genCode0 ("READ", "");
+                        readInstr = 1;
+                        TypeDescrPtr exprType = processExpr(invertedExpressionList);
+                        readInstr = 0;
                 }
                 else {
+
+                        referenceParameter = functionParams->descr.paramDescr->pass;
+
+                        TypeDescrPtr exprType = processExpr(invertedExpressionList);
+
+                        if (functionParams == NULL) /* The function requires less parameters */
+                                SemanticError(NULL);
+
+                        if (!compatibleType(exprType, functionParams->descr.paramDescr->type)) {
+                                SemanticError(NULL);
+                        }
+
+                        functionParams = functionParams->next;
 
                 }
 
@@ -404,10 +397,15 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
                         SemanticError(NULL);
                 }
 
-                genLabel2 ("CFUN", functionEntry->descr.functionDescr->entLabel, getCurrentLevel(), "");
+                if (functionEntry->categ == S_FUNCTION) {
+                        genLabel2 ("CFUN", functionEntry->descr.functionDescr->entLabel, getCurrentLevel(), "");
+                }
+                else {
+                        genCode3 ("CPFN", functionEntry->level, functionEntry->descr.paramDescr->displ, getCurrentLevel(), "");
+                }
         }
 
-        return functionEntry->descr.functionDescr->result;
+        return result;
 
 }
 
@@ -720,7 +718,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                                         Passage pass_method = variableEntry->descr.paramDescr->pass;
                                         genCode2 (pass_method == P_VALUE ? "LDVL" : "LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
                                 }
-                                else { /* ARRAY */
+                                else if (variableEntry->descr.paramDescr->type->constr == T_ARRAY) { /* ARRAY */
                                         Passage pass_method = variableEntry->descr.paramDescr->pass;
                                         if (pass_method == P_VALUE) {
                                                 genCode2 ("LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
@@ -735,9 +733,21 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                                                 return varType;
                                         }
                                         else {
-                                                genCode2 ("LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
+                                                genCode2 ("LDVL", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
                                         }
                                 }
+                        }
+                        else if (variableEntry->categ == S_FUNCTION) {
+
+                                TypeDescrPtr functionType = (TypeDescrPtr) malloc (sizeof (TypeDescr));
+                                functionType->constr = T_FUNCTION;
+                                functionType->size = 3;
+                                functionType->descr.FunctionType.result = variableEntry->descr.functionDescr->result;
+                                functionType->descr.FunctionType.params = variableEntry->descr.functionDescr->params;
+
+                                genLabel2 ("LGAD", variableEntry->descr.functionDescr->entLabel, getCurrentLevel(), "");
+
+                                return functionType;
                         }
 
                         
@@ -888,12 +898,20 @@ void genCode2 (char* instr, int param1, int param2, char* comment) {
         printf ("%10s   %d,%d%s\n", instr, param1, param2, comment);
 }
 
+void genCode3 (char* instr, int param1, int param2, int param3, char* comment) {
+        printf ("%10s   %d,%d,%d%s\n", instr, param1, param2, param3, comment);
+}
+
 void genLabel1 (char* instr, int label, char* comment) {
         printf ("%10s   L%d%s\n", instr, label, comment);
 }
 
 void genLabel2 (char* instr, int label, int param, char* comment) {
         printf ("%10s   L%d,%d%s\n", instr, label, param, comment);
+}
+
+void genLabel3 (char* instr, int label, int param1, int param2, char* comment) {
+        printf ("%10s   L%d,%d,%d%s\n", instr, label, param1, param2, comment);
 }
 
 void genCodeLabel(int label, char* comment) {

@@ -71,13 +71,6 @@ void initSymbolTable() {
         writeEntry->descr.functionDescr = (FunctionDescPtr) malloc (sizeof (FunctionDesc));
         writeEntry->descr.functionDescr->displ = -5; /* Parameter and -4 from function call */
         writeEntry->descr.functionDescr->result = NULL;
-        /* writeEntry->descr.functionDescr->params = (ParameterDescPtr) malloc (sizeof (ParameterDesc));
-
-        writeEntry->descr.functionDescr->params->displ = 0;
-        writeEntry->descr.functionDescr->params->type = integer;
-        writeEntry->descr.functionDescr->params->pass = P_VALUE;
-
-        */
 
         SymbEntryPtr writeParameterEntry = newSymbEntry(S_PARAMETER, "");
         writeParameterEntry->descr.paramDescr = (ParameterDescPtr) malloc (sizeof (ParameterDesc));
@@ -130,13 +123,6 @@ void insertSymbolTable (SymbEntryPtr newEntry) {
 void saveSymbTable(SymbEntryPtr entryList) {
 
         savedSymbolTableTop = entryList;
-
-        /*
-        savedSymbolTableTop = symbolTable;
-
-        while (savedSymbolTableTop->next != NULL)
-                savedSymbolTableTop = savedSymbolTableTop->next;
-        */
 }
 
 void setSavedState(SymbEntryPtr entry) {
@@ -282,6 +268,8 @@ int compatibleType (TypeDescrPtr t1, TypeDescrPtr t2) {
 
         if (t1->constr == t2->constr) {
 
+                int compatible = 0;
+
                 switch (t1->constr) {
                         case T_ARRAY:
                                 if (t1->descr.ArrayType.dimen != t2->descr.ArrayType.dimen)
@@ -290,10 +278,28 @@ int compatibleType (TypeDescrPtr t1, TypeDescrPtr t2) {
                                 return compatibleType (t1->descr.ArrayType.element, t2->descr.ArrayType.element);
 
                         case T_FUNCTION:
+                                                                
+                                if (!compatibleType (t1->descr.FunctionType.result, t2->descr.FunctionType.result))
+                                        return 0;
+
+                                SymbEntryPtr paramT1 = t1->descr.FunctionType.params, 
+                                             paramT2 = t2->descr.FunctionType.params;
+
+                                while (paramT1 != NULL && paramT2 != NULL) {
+
+                                        if (!compatibleType (paramT1->descr.paramDescr->type, paramT2->descr.paramDescr->type))
+                                                return 0;
+
+                                        paramT1 = paramT1->next;
+                                        paramT2 = paramT2->next;
+                                }
+
+                                if (paramT1 != NULL || paramT2 != NULL) 
+                                        return 0;
+
                                 return 1;
                 }
         }
-
 
         return 0;
 }

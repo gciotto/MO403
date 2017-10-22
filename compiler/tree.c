@@ -168,8 +168,6 @@ void freeNode(TreeNodePtr node) {
         if (node == NULL)
                 return;
 
-        freeTree(node->next);
-
         if (node->str)
                 free(node->str);
 
@@ -187,6 +185,8 @@ void freeTree(TreeNodePtr tree) {
 
         while (tree->comps[i] && i < MAX_COMPS)
                 freeTree(tree->comps[i++]);
+
+        freeTree(tree->next);
 
         freeNode(tree);
 }

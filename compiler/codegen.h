@@ -34,11 +34,14 @@ TypeDescrPtr processFactor (TreeNodePtr p);
 
 void genCode0 (char* instr, char* comment);
 void genCode1 (char* instr, int param, char* comment);
+void genCode2 (char* instr, int param1, int param2, char* comment);
+void genCode3 (char* instr, int param1, int param2, int param3, char* comment);
 void genLabel1 (char* instr, int label, char* comment);
 void genLabel2 (char* instr, int label, int param, char* comment);
-void genCode2 (char* instr, int param1, int param2, char* comment);
+void genLabel3 (char* instr, int label, int param1, int param2, char* comment);
 
 void genCodeLabel(int label, char* comment);
 void genCodeLabel1(int label, char* instr, int param1, char* comment);
 void genCodeLabel2(int label, char* instr, int param1, int param2, char* comment);
+
 #endif
