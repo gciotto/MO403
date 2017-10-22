@@ -12,10 +12,12 @@ set +x
 
 for i in $(seq 0 $3); do
         test_id=$(printf "%02d" $i)
-        ./test_tree < "tests/prog${test_id}.sl" > "tests/prog${test_id}.out"
-        echo "diff tests/prog${test_id}.out" "tests/result${test_id}"
-        diff "tests/prog${test_id}.out" "tests/result${test_id}"
+        ./compiler < "tests/prog${test_id}.sl" > "tests/prog${test_id}.out"
+        echo "diff tests/prog${test_id}.out" "tests/prog${test_id}.mep"
+        diff tests/prog${test_id}.out tests/prog${test_id}.mep
+        # ./mepa/mepa.py --silent --limit 12000 --progfile tests/prog${test_id}.out < tests/data${test_id}.in > tests/prog${test_id}_exec.out
+        # cat tests/prog${test_id}_exec.out
 done
 
 rm -f tests/*.out
-rm -f test_parser
+# rm -f compiler

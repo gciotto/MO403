@@ -91,7 +91,6 @@ TypeDescrPtr INTEGER, BOOLEAN;
 
 void dumpSymbolTable();
 void initSymbolTable();
-SymbEntryPtr searchSte(char* id);
 SymbEntryPtr newSymbEntry(SymbCateg entryCateg, char* id);
 void insertSymbolTable (SymbEntryPtr newEntry);
 void saveSymbTable(SymbEntryPtr entryList);
@@ -106,6 +105,7 @@ TypeDescrPtr getType(TreeNodePtr p);
 SymbEntryPtr getFunction(char* id);
 SymbEntryPtr getVariable(char* id);
 SymbEntryPtr searchId(char* id);
+TypeDescrPtr multiDimensionalType (TreeNodePtr p, TypeDescrPtr baseType);
 TypeDescrPtr determineType(TreeNodePtr p);
 int nextLabel();
 int compatibleType (TypeDescrPtr t1, TypeDescrPtr t2);

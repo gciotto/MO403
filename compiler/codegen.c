@@ -4,13 +4,14 @@
 #include "codegen.h"
 
 int readInstr = 0;
+Passage referenceParameter;
 
 void processProgram(void *p) {
 
         initSymbolTable();
         processFuncDecl(((TreeNodePtr) p)->comps[0], 1);
-        genCode0("END");
-        freeTree(p);
+        genCode0("END ", "");
+        //freeTree(p);
 }
 
 int stackHeight() {
@@ -51,11 +52,11 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
         saveSymbTable(func);
 
         if (ismain) 
-                genCode0("MAIN");
+                genCode0("MAIN", "");
         else {
                 func->descr.functionDescr->entLabel = nextLabel(); 
                 func->descr.functionDescr->retLabel = nextLabel();
-                genCodeLabel1(func->descr.functionDescr->entLabel, "ENFN", getCurrentLevel());
+                genCodeLabel1(func->descr.functionDescr->entLabel, "ENFN", getCurrentLevel(), fname);
         }
 
         processLabels (p->comps[3]->comps[0]);
@@ -63,7 +64,7 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
         currentDispl = processVariables (p->comps[3]->comps[2]);
 
         if (currentDispl > 0)
-                genCode1("ALOC", currentDispl);
+                genCode1("ALOC", currentDispl, "");
 
         //loadFormalsSymbolTable(formals);
         insertSymbolTable(formals);
@@ -74,17 +75,17 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
         processStatements(p->comps[3]->comps[4], currentDispl);
 
         if (!ismain)
-                genCodeLabel(func->descr.functionDescr->retLabel);
+                genCodeLabel(func->descr.functionDescr->retLabel, "");
 
         if (currentDispl > 0)
-                genCode1("DLOC", currentDispl);
+                genCode1("DLOC", currentDispl, "");
 
         if (ismain) 
-                genCode0("STOP");
+                genCode0("STOP", "");
         else if (func->descr.functionDescr->result != NULL)
-                genCode1("RTRN", -lastDispl - (4 + func->descr.functionDescr->result->size));
+                genCode1("RTRN", -lastDispl - (4 + func->descr.functionDescr->result->size), "        end function");
         else
-                genCode1("RTRN", -lastDispl - 4);
+                genCode1("RTRN", -lastDispl - 4, "        end function");
 
         decrCurrentLevel();
 
@@ -115,7 +116,38 @@ void processLabels (TreeNodePtr p) {
         } 
 }
 
+
 void processTypes (TreeNodePtr p) {
+
+        if (p->categ == C_EMPTY)
+                return ;
+
+        TreeNodePtr invertedTypesList = invertList (p->comps[0]);
+
+        while (invertedTypesList->categ != C_EMPTY) {
+
+                char *typeName = invertedTypesList->comps[0]->str;
+                SymbEntryPtr typeEntry = searchId (typeName);
+
+                if (typeEntry != NULL)
+                        SemanticError(NULL);
+
+                SymbEntryPtr newTypeEntry = newSymbEntry(S_TYPE, typeName);
+
+                TreeNodePtr invertedArrayList = invertList (invertedTypesList->comps[1]->comps[0]);
+
+                SymbEntryPtr baseTypeEntry = searchId (invertedArrayList->str);
+
+                if (baseTypeEntry == NULL)
+                        SemanticError(NULL);
+
+                newTypeEntry->descr.typeDescr = (TypeDescrPtr) malloc (sizeof (TypeDescr));
+                newTypeEntry->descr.typeDescr = determineType(invertedArrayList);
+
+                insertSymbolTable(newTypeEntry);
+                invertedTypesList = invertedTypesList->next;
+                        
+        }
 }
 
 int processVariables (TreeNodePtr p) {
@@ -172,7 +204,7 @@ void processFunctions (TreeNodePtr p) {
         TreeNodePtr invertedFunctionList = invertList (p->comps[0]);
 
         int bodyLabel = nextLabel();
-        genLabel1 ("JUMP", bodyLabel);
+        genLabel1 ("JUMP", bodyLabel, "");
 
         while (invertedFunctionList->categ != C_EMPTY) {
 
@@ -180,11 +212,12 @@ void processFunctions (TreeNodePtr p) {
                 invertedFunctionList = invertedFunctionList->next;
         }
 
-        genCodeLabel(bodyLabel);
+        genCodeLabel(bodyLabel, "             body");
 }
 
 void processStatements (TreeNodePtr p, int variableDispl) {
 
+        char comment[20];
         if (p->categ == C_EMPTY)
                 return;
 
@@ -202,7 +235,8 @@ void processStatements (TreeNodePtr p, int variableDispl) {
                                 SemanticError(NULL);
                         }
 
-                        genCodeLabel2(labelEntry->descr.labelDescr->defined, "ENLB", labelEntry->level, variableDispl);
+                        sprintf (comment, "%s:", statements->comps[0]->str);
+                        genCodeLabel2(labelEntry->descr.labelDescr->defined, "ENLB", labelEntry->level, variableDispl, comment);
                         processUnlabeledStatements (statements->comps[1]);
                 }
                 else 
@@ -248,29 +282,49 @@ void processAssignment (TreeNodePtr p) {
         //dumpTree(p, 4);
 
         TreeNodePtr invertedVariableList = invertList (p->comps[0]);
+        TypeDescrPtr exprType, varType;
+        int isArray = 0;
 
         //dumpTree(invertedVariableList, 0);
-
-        //dumpSymbolTable();
 
         SymbEntryPtr variableEntry = searchId (invertedVariableList->comps[0]->str);
 
         if (variableEntry == NULL)
                 SemanticError(NULL);                
 
-        TypeDescrPtr exprType = processExpr (p->comps[1]);
+        switch  (variableEntry->categ) {
 
-        //if (variableEntry->descr.variableDescr->type != exprType) {
-        if (!compatibleType(variableEntry->descr.variableDescr->type, exprType)) {
-                
-                //printf ("dasdasda41232131 %x %x %x %x\n", INTEGER, BOOLEAN, variableEntry->descr.variableDescr->type,  exprType);
+                case S_VARIABLE:
+                        varType = variableEntry->descr.variableDescr->type;
+                        break;
+                case S_PARAMETER:
+                        varType = variableEntry->descr.paramDescr->type;
+                        break;
+        }
+
+        if (varType->constr == T_ARRAY) {
+
+                isArray = 1;
+
+                if (variableEntry->categ == S_VARIABLE)
+                        genCode2 ("LADR", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
+                else 
+                        genCode2 ("LDVL", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
+
+                varType = processArray (invertedVariableList, varType);
+        }
+
+        exprType = processExpr (p->comps[1]);
+
+        if (!compatibleType(varType, exprType)) {
                 SemanticError(NULL);
         }
 
-        if (variableEntry->descr.variableDescr->type->constr != T_ARRAY) {
-                genCode2 ("STVL", variableEntry->level, variableEntry->descr.variableDescr->displ);
+        if (!isArray) {
+                genCode2 ("STVL", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
         }
         else { /* ARRAYs */
+                genCode1 ("STMV", varType->size, "");
         }
 
 }
@@ -283,36 +337,60 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
                     expressionList = functionCall->comps[1],
                     invertedExpressionList = invertList (expressionList->comps[0]);
 
-        SymbEntryPtr functionEntry = getFunction(identifier->str),
+        SymbEntryPtr functionEntry = searchId(identifier->str),
                      functionParams = functionEntry->descr.functionDescr->params;
 
+        TypeDescrPtr result;
+
+        if (functionEntry->categ == S_FUNCTION) {
+                functionParams = functionEntry->descr.functionDescr->params
+                result = functionEntry->descr.functionDescr->result;
+        }
+        else {
+        }
+
+
         if (functionEntry != READ_FUNCTION && functionEntry->descr.functionDescr->result != NULL)
-                genCode1("ALOC", functionEntry->descr.functionDescr->result->size);
+                genCode1("ALOC", functionEntry->descr.functionDescr->result->size, "        result");
 
         while (invertedExpressionList->categ != C_EMPTY) {
 
-                if (functionEntry == WRITE_FUNCTION) {
-                        TypeDescrPtr exprType = processExpr(invertedExpressionList);
-                        genCode0 ("PRNT");
-                }
-                else if (functionEntry == READ_FUNCTION) {
-                        genCode0 ("READ");
-                        readInstr = 1;
-                        TypeDescrPtr exprType = processExpr(invertedExpressionList);
-                        readInstr = 0;
+                if (functionEntry->categ == S_FUNCTION) {
+
+                        if (functionEntry == WRITE_FUNCTION) {
+
+                                referenceParameter = P_VALUE;
+
+                                TypeDescrPtr exprType = processExpr(invertedExpressionList);
+                                genCode0 ("PRNT", "");
+                        }
+                        else if (functionEntry == READ_FUNCTION) {
+
+                                referenceParameter = P_VALUE;
+
+                                genCode0 ("READ", "");
+                                readInstr = 1;
+                                TypeDescrPtr exprType = processExpr(invertedExpressionList);
+                                readInstr = 0;
+                        }
+                        else {
+
+                                referenceParameter = functionParams->descr.paramDescr->pass;
+
+                                TypeDescrPtr exprType = processExpr(invertedExpressionList);
+
+                                if (functionParams == NULL) /* The function requires less parameters */
+                                        SemanticError(NULL);
+
+                                if (!compatibleType(exprType, functionParams->descr.paramDescr->type)) {
+                                        SemanticError(NULL);
+                                }
+
+                                functionParams = functionParams->next;
+
+                        }
                 }
                 else {
-
-                        TypeDescrPtr exprType = processExpr(invertedExpressionList);
-
-                        if (functionParams == NULL) /* The function requires less parameters */
-                                SemanticError(NULL);
-
-                        if (!compatibleType(exprType, functionParams->descr.paramDescr->type)) {
-                                SemanticError(NULL);
-                        }
-
-                        functionParams = functionParams->next;
 
                 }
 
@@ -320,13 +398,13 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
         }
 
         if (functionEntry != READ_FUNCTION && functionEntry != WRITE_FUNCTION) {
+
                 if (functionParams != NULL && functionParams->categ == S_PARAMETER) { /* The function requires more parameters */
                         printf ("CZXC \n");
                         SemanticError(NULL);
                 }
 
-                 genLabel2 ("CFUN", functionEntry->descr.functionDescr->entLabel, getCurrentLevel());
-
+                genLabel2 ("CFUN", functionEntry->descr.functionDescr->entLabel, getCurrentLevel(), "");
         }
 
         return functionEntry->descr.functionDescr->result;
@@ -335,12 +413,15 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
 
 void processGoto (TreeNodePtr p) {
 
+        char comment [20];
+
         SymbEntryPtr labelEntry = searchId (p->comps[0]->str);
 
         if (labelEntry == NULL || labelEntry->categ != S_LABEL)
                 SemanticError(NULL);
 
-        genLabel1 ("JUMP", labelEntry->descr.labelDescr->defined);
+        sprintf (comment, "%*cgoto %s", 9, ' ', p->comps[0]->str);
+        genLabel1 ("JUMP", labelEntry->descr.labelDescr->defined, comment);
         
 }
 
@@ -359,14 +440,15 @@ void processReturn (TreeNodePtr p) {
         if (funcEntry->descr.functionDescr->result != NULL) {
                 
                 if (funcEntry->descr.functionDescr->result->constr != T_ARRAY)
-                        genCode2 ("STVL", getCurrentLevel(), funcEntry->descr.functionDescr->displ);
+                        genCode2 ("STVL", getCurrentLevel(), funcEntry->descr.functionDescr->displ, "");
         }
    
-        genLabel1 ("JUMP", funcEntry->descr.functionDescr->retLabel);
+        genLabel1 ("JUMP", funcEntry->descr.functionDescr->retLabel, "");
 }
 
 void processConditional (TreeNodePtr p) {
 
+        char comment[20];
         TypeDescrPtr condition = processExpr (p->comps[0]);
 
         if (!compatibleType(condition, BOOLEAN))
@@ -377,39 +459,49 @@ void processConditional (TreeNodePtr p) {
         if (p->comps[2]->categ != C_EMPTY)
                 endLabel = nextLabel ();
 
-        genLabel1 ("JMPF", elseLabel);
+        sprintf (comment, "%10s", "if");
+        genLabel1 ("JMPF", elseLabel, comment);
 
         processCompound (p->comps[1]);
 
-        if (p->comps[2]->categ != C_EMPTY)
-                genLabel1 ("JUMP", endLabel);
+        if (p->comps[2]->categ != C_EMPTY) {
+                genLabel1 ("JUMP", endLabel, "");
+                sprintf (comment, "%17s", "else");
+        }
+        else
+                sprintf (comment, "%19s", "end if");
 
-        genCodeLabel(elseLabel);
+        
+        genCodeLabel(elseLabel, comment);
 
         if (p->comps[2]->categ != C_EMPTY) {
+                sprintf (comment, "%19s", "end if");
                 processCompound (p->comps[2]);
-                genCodeLabel(endLabel);
+                genCodeLabel(endLabel, comment);
         }
         
 }
 
 void processLoop (TreeNodePtr p) {
 
+        char comment[25];
         int condLabel = nextLabel(), endLabel = nextLabel();
-        
-        genCodeLabel(condLabel);
+
+        sprintf (comment, "%18s", "while");        
+        genCodeLabel(condLabel, comment);
         TypeDescrPtr expr = processExpr (p->comps[0]);
 
         if (!compatibleType(expr, BOOLEAN))
                 SemanticError(NULL);
 
-        genLabel1 ("JMPF", endLabel);
+        genLabel1 ("JMPF", endLabel, "");
 
         processCompound (p->comps[1]);
 
-        genLabel1 ("JUMP", condLabel);
+        genLabel1 ("JUMP", condLabel, "");
 
-        genCodeLabel(endLabel);
+        sprintf (comment, "%22s", "end while");
+        genCodeLabel(endLabel, comment);
 }
 
 void processCompound (TreeNodePtr p) {
@@ -446,16 +538,16 @@ TypeDescrPtr processExpr(TreeNodePtr p) {
                 char* op = p->comps[1]->comps[0]->str;
 
                 if (strcmp(op, "==") == 0)
-                        genCode0("EQUA");
+                        genCode0("EQUA", "");
                 else if (strcmp(op, "!=") == 0)
-                        genCode0("DIFF");
+                        genCode0("DIFF", "");
                 else if (strcmp(op, "<") == 0)
-                        genCode0("LESS");
+                        genCode0("LESS", "");
                 else if (strcmp(op, "<=") == 0)
-                        genCode0("LEQU");
+                        genCode0("LEQU", "");
                 else if (strcmp(op, ">") == 0)
-                        genCode0("GRTR");
-                else genCode0("GEQU");
+                        genCode0("GRTR", "");
+                else genCode0("GEQU", "");
 
                 return BOOLEAN;
         }
@@ -478,7 +570,7 @@ TypeDescrPtr processSimpleExpr(TreeNodePtr p) {
                         SemanticError(NULL);
 
                 if (strcmp(unarySimpleOp->str, "-") == 0)
-                        genCode0("NEGT");
+                        genCode0("NEGT", "");
         }
 
         while (invertedTermList->categ != C_EMPTY) {
@@ -522,11 +614,11 @@ TypeDescrPtr processMultiplicativeFactor(TreeNodePtr p) {
         char* op = p->comps[0]->str;
 
         if (strcmp(op, "*") == 0)
-                genCode0("MULT");
+                genCode0("MULT", "");
         else if (strcmp(op, "/") == 0)
-                genCode0("DIVI");
+                genCode0("DIVI", "");
         else if (strcmp(op, "&&") == 0)
-                genCode0("LAND");
+                genCode0("LAND", "");
 
         return argument2;
 
@@ -539,14 +631,35 @@ TypeDescrPtr processAdditiveTerm (TreeNodePtr p) {
         char* op = p->comps[0]->str;
 
         if (strcmp(op, "+") == 0)
-                genCode0("ADDD");
+                genCode0("ADDD", "");
         else if (strcmp(op, "-") == 0)
-                genCode0("SUBT");
+                genCode0("SUBT", "");
         else if (strcmp(op, "||") == 0)
-                genCode0("LORR");
+                genCode0("LORR", "");
 
         return argument2;
 
+}
+
+TypeDescrPtr processArray (TreeNodePtr p, TypeDescrPtr varType) {
+
+        TypeDescrPtr exprType;
+
+        p = p->next;
+
+        while (p->categ != C_EMPTY) {
+
+                exprType = processExpr (p);
+                if (!compatibleType (exprType, INTEGER))
+                        SemanticError(NULL);
+
+                genCode1 ("INDX", varType->descr.ArrayType.element->size, "");
+
+                varType = varType->descr.ArrayType.element;
+                p = p->next;
+        }
+
+        return varType;
 }
 
 TypeDescrPtr processFactor (TreeNodePtr p) {
@@ -561,34 +674,70 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
         switch (invertedFactorList->categ) {
                 case C_INTEGER:
-                        genCode1 ("LDCT", strtol(p->comps[0]->str, NULL, 10));
+                        genCode1 ("LDCT", strtol(p->comps[0]->str, NULL, 10), "");
                         return INTEGER;
 
                 case C_VARIABLE:
 
                         variableEntry = searchId (invertedFactorList->comps[0]->str);
 
+                        if (variableEntry == NULL)
+                                SemanticError(NULL);
+
                         if (variableEntry->categ == S_CONST) {
 
                                 if (variableEntry == FALSE || variableEntry == TRUE) {
-                                        genCode1 ("LDCT", variableEntry == FALSE ? 0 : 1);
+                                        genCode1 ("LDCT", variableEntry == FALSE ? 0 : 1, "");
                                         return BOOLEAN;
                                 }
                         }
                         else if (variableEntry->categ == S_VARIABLE) {
                                 if (variableEntry->descr.variableDescr->type->constr != T_ARRAY) {
-                                        genCode2 (readInstr ? "STVL" : "LDVL", variableEntry->level, variableEntry->descr.variableDescr->displ);
+                                        if (referenceParameter != P_VARIABLE)
+                                                genCode2 (readInstr ? "STVL" : "LDVL", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
+                                        else
+                                                genCode2 ("LADR", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
                                 }
                                 else { /* ARRAY */
+
+                                        genCode2 ("LADR", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
+                                        
+                                        TypeDescrPtr varType = processArray (invertedFactorList, variableEntry->descr.variableDescr->type);
+
+                                        if (referenceParameter != P_VARIABLE) {
+                                                if (varType->size > 1)
+                                                        genCode1 ("LDMV", varType->size, "");
+                                                else 
+                                                        genCode0 ("CONT", "");
+                                        }
+
+                                        return varType;
                                 }
                         }
                         else if (variableEntry->categ == S_PARAMETER) {
+
                                 if (variableEntry->descr.paramDescr->type->constr != T_ARRAY) {
                                         Passage pass_method = variableEntry->descr.paramDescr->pass;
-                                        genCode2 (pass_method == P_VALUE ? "LDVL" : "LADR", variableEntry->level, variableEntry->descr.paramDescr->displ);
+                                        genCode2 (pass_method == P_VALUE ? "LDVL" : "LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
                                 }
                                 else { /* ARRAY */
-                                }                                
+                                        Passage pass_method = variableEntry->descr.paramDescr->pass;
+                                        if (pass_method == P_VALUE) {
+                                                genCode2 ("LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
+
+                                                TypeDescrPtr varType = processArray (invertedFactorList, variableEntry->descr.paramDescr->type);
+
+                                                if (varType->size > 1)
+                                                        genCode1 ("LDMV", varType->size, "");
+                                                else 
+                                                        genCode0 ("CONT", "");
+
+                                                return varType;
+                                        }
+                                        else {
+                                                genCode2 ("LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
+                                        }
+                                }
                         }
 
                         
@@ -604,7 +753,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
                         /* verify if it is bool */
 
-                        genCode0 ("LNOT");
+                        genCode0 ("LNOT", "");
 
                         return aux;
 
@@ -641,27 +790,25 @@ SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl, int* count) {
                                 TypeDescrPtr paramType = getType(invertedList->comps[1]);
 
                                 TreeNodePtr invertedIdentList = invertList(invertedList->comps[0]->comps[0]);
-                                //TreeNodePtr invertedIdentList = invertList (invertedList->comps[0]->comps[0]->next);
 
                                 while (invertedIdentList->categ != C_EMPTY) {
-                                //while (invertedIdentList != NULL) {
 
                                         formalParameter = newSymbEntry(S_PARAMETER, invertedIdentList->str);
                                         formalParameter->descr.paramDescr = (ParameterDescPtr) malloc (sizeof (ParameterDesc));
                                         formalParameter->descr.paramDescr->pass = pass_method;
                                         formalParameter->descr.paramDescr->type = paramType;
 
-                                        //insertSymbolTable(formalParameter);
 
-                                        *lastDispl = *lastDispl - paramType->size;
+                                        if (pass_method == P_VALUE)
+                                                *lastDispl = *lastDispl - paramType->size;
+                                        else
+                                                *lastDispl = *lastDispl - 1;
 
                                         if (formalParameterList == NULL) {
                                                 formalParameterList = formalParameter;
                                                 aux = formalParameter;
                                         }
                                         else {
-                                                //TypeDescrPtr
-
                                                 aux->next = formalParameter;
                                                 aux = formalParameter;
                                         }
@@ -675,7 +822,7 @@ SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl, int* count) {
                         case C_FUNCTION_PARAMETER:
 
                                 formalParameter = newSymbEntry(S_PARAMETER, invertedList->comps[1]->str);
-                                formalParameter->descr.paramDescr->displ = *lastDispl - 1;
+                                formalParameter->descr.paramDescr = (ParameterDescPtr) malloc (sizeof (ParameterDesc));
                                 formalParameter->descr.paramDescr->pass = P_VALUE;
 
                                 TypeDescrPtr functionType = (TypeDescrPtr) malloc (sizeof (TypeDescr));
@@ -691,6 +838,7 @@ SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl, int* count) {
                                 SymbEntryPtr functionFormals = processFormals (invertedList->comps[2], &displ, &auxCount);
 
                                 functionType->descr.FunctionType.params = functionFormals;
+
                                 formalParameter->descr.paramDescr->type = functionType;
 
                                 *lastDispl = *lastDispl - functionType->size;
@@ -716,41 +864,52 @@ SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl, int* count) {
         int i = 0;
         while (aux != NULL) {
                 aux->descr.paramDescr->displ = *lastDispl + i;
-                i += aux->descr.paramDescr->type->size;
+
+                if (aux->descr.paramDescr->pass == P_VALUE)
+                        i += aux->descr.paramDescr->type->size;
+                else 
+                        i++;
+
                 aux = aux->next;              
         }
 
         return formalParameterList;
 }
 
-void genCode0 (char* instr) {
-        printf ("%s\n", instr);
+void genCode0 (char* instr, char* comment) {
+        printf ("%10s%s\n", instr, comment);
 }
 
-void genCode1 (char* instr, int param) {
-        printf ("\t%s %d\n", instr, param);
+void genCode1 (char* instr, int param, char* comment) {
+        printf ("%10s   %d%s\n", instr, param, comment);
 }
 
-void genLabel1 (char* instr, int label) {
-        printf ("\t%s L%d\n", instr, label);
+void genCode2 (char* instr, int param1, int param2, char* comment) {
+        printf ("%10s   %d,%d%s\n", instr, param1, param2, comment);
 }
 
-void genLabel2 (char* instr, int label, int param) {
-        printf ("\t%s L%d,%d\n", instr, label, param);
+void genLabel1 (char* instr, int label, char* comment) {
+        printf ("%10s   L%d%s\n", instr, label, comment);
 }
 
-void genCode2 (char* instr, int param1, int param2) {
-        printf ("\t%s %d,%d\n", instr, param1, param2);
+void genLabel2 (char* instr, int label, int param, char* comment) {
+        printf ("%10s   L%d,%d%s\n", instr, label, param, comment);
 }
 
-void genCodeLabel(int label) {
-        printf ("L%d:\tNOOP\n", label);
+void genCodeLabel(int label, char* comment) {
+        char lbl[6];
+        sprintf (lbl, "L%d:", label);
+        printf ("%-6sNOOP%13s\n", lbl, comment);
 }
 
-void genCodeLabel1(int label, char* instr, int param1) {
-        printf ("L%d:\t%s %d\n", label, instr, param1);
+void genCodeLabel1(int label, char* instr, int param1, char* comment) {
+        char lbl[6];
+        sprintf (lbl, "L%d:", label);
+        printf ("%-6s%s   %d         %s\n", lbl, instr, param1, comment);
 }
 
-void genCodeLabel2(int label, char* instr, int param1, int param2) {
-        printf ("L%d:\t%s %d,%d\n", label, instr, param1, param2);
+void genCodeLabel2(int label, char* instr, int param1, int param2, char* comment) {
+        char lbl[6];
+        sprintf (lbl, "L%d:", label);
+        printf ("%-6s%s   %d,%d        %s\n", lbl, instr, param1, param2, comment);
 }

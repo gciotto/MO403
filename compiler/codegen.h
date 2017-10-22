@@ -29,15 +29,16 @@ TypeDescrPtr processSimpleExpr(TreeNodePtr p);
 TypeDescrPtr processTerm (TreeNodePtr p);
 TypeDescrPtr processMultiplicativeFactor(TreeNodePtr p);
 TypeDescrPtr processAdditiveTerm (TreeNodePtr p);
+TypeDescrPtr processArray (TreeNodePtr p, TypeDescrPtr varType);
 TypeDescrPtr processFactor (TreeNodePtr p);
 
-void genCode0 (char* instr);
-void genCode1 (char* instr, int param);
-void genLabel1 (char* instr, int label);
-void genLabel2 (char* instr, int label, int param);
-void genCode2 (char* instr, int param1, int param2);
+void genCode0 (char* instr, char* comment);
+void genCode1 (char* instr, int param, char* comment);
+void genLabel1 (char* instr, int label, char* comment);
+void genLabel2 (char* instr, int label, int param, char* comment);
+void genCode2 (char* instr, int param1, int param2, char* comment);
 
-void genCodeLabel(int label);
-void genCodeLabel1(int label, char* instr, int param1);
-void genCodeLabel2(int label, char* instr, int param1, int param2);
+void genCodeLabel(int label, char* comment);
+void genCodeLabel1(int label, char* instr, int param1, char* comment);
+void genCodeLabel2(int label, char* instr, int param1, int param2, char* comment);
 #endif

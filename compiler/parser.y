@@ -157,7 +157,7 @@ type
         ;
 
 brackets_list
-        : OPEN_BRACKET integer CLOSE_BRACKET                                    { genNode (C_TYPE_BRACE, 1); insertTopList(); }
+        : OPEN_BRACKET integer CLOSE_BRACKET                                    { insertTopList(); }
           brackets_list
         | empty                                                                 { insertTopList(); }
         ;

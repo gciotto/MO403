@@ -101,20 +101,6 @@ void initSymbolTable() {
         // dumpSymbolTable ();
 }
 
-SymbEntryPtr searchSte(char* id) {
-
-        SymbEntryPtr nextEntry = symbolTable;
-        while (nextEntry != NULL) {
-
-                if (strcmp (id, nextEntry->ident) == 0)
-                        return nextEntry;
-
-                nextEntry = nextEntry->next;
-        }
-
-        return NULL;
-}
-
 SymbEntryPtr newSymbEntry(SymbCateg entryCateg, char* id) {
 
         SymbEntryPtr entry = (SymbEntryPtr) malloc (sizeof (SymbEntry));
@@ -236,21 +222,21 @@ SymbEntryPtr getVariable(char* id) {
 
 SymbEntryPtr searchId(char* id){
 
-        SymbEntryPtr nextEntry = symbolTable;
+        SymbEntryPtr nextEntry = symbolTable, result = NULL;;
         while (nextEntry != NULL) {
 
                 if (strcmp (id, nextEntry->ident) == 0)
-                        return nextEntry;
+                        result = nextEntry;
 
                 nextEntry = nextEntry->next;
         }
 
-        return NULL; 
+        return result; 
 }
 
 TypeDescrPtr multiDimensionalType (TreeNodePtr p, TypeDescrPtr baseType) {
 
-        int dimension = strtol(p->comps[0]->str, NULL, 10);
+        int dimension = strtol(p->str, NULL, 10);
 
         TypeDescrPtr arrayType = (TypeDescrPtr) malloc (sizeof (TypeDescr));
         arrayType->constr = T_ARRAY;
