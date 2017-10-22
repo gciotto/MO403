@@ -9,7 +9,7 @@ void processProgram(void *p);
 int stackHeight();
 
 void processFuncDecl(TreeNodePtr p, int ismain);
-SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl, int* count);
+SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl);
 void processLabels (TreeNodePtr p);
 void processTypes (TreeNodePtr p);
 int processVariables (TreeNodePtr p);

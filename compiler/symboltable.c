@@ -91,15 +91,65 @@ void initSymbolTable() {
         WRITE_FUNCTION = writeEntry;
         READ_FUNCTION = readEntry;
 
-        // dumpSymbolTable ();
+}
+
+void freeSymbolTable() {
+        freeSymbolTableFrom (symbolTable);
+}
+
+void freeSymbolTableFrom (SymbEntryPtr entry) {
+
+        if (entry == NULL)
+                return;
+
+        SymbEntryPtr aux;
+
+        while (entry != NULL) {
+
+                free (entry->ident);
+
+                switch (symbolTable->categ) {
+
+                        case S_CONST:
+                                free (entry->descr.constantDescr);
+                                break;
+                        case S_VARIABLE:
+                                free (entry->descr.variableDescr);
+                                break;
+                        case S_PARAMETER:
+                                free (entry->descr.paramDescr);
+                                break;
+                        case S_FUNCTION:
+                                free (entry->descr.functionDescr);
+                                break;
+                        case S_LABEL:
+                                free (entry->descr.labelDescr);
+                                break;
+                        case S_TYPE:
+                                
+                                if (entry->descr.typeDescr->constr == T_ARRAY)
+                                        free (entry->descr.typeDescr->descr.ArrayType.element);
+                                else if (entry->descr.typeDescr->constr == T_FUNCTION)
+                                        free (entry->descr.typeDescr->descr.FunctionType.result);
+                                
+                                free (entry->descr.typeDescr);
+                                break;
+                }
+
+                aux = entry->next;
+                free (entry);
+                entry = aux;
+        }
 }
 
 SymbEntryPtr newSymbEntry(SymbCateg entryCateg, char* id) {
 
         SymbEntryPtr entry = (SymbEntryPtr) malloc (sizeof (SymbEntry));
 
+        entry->ident = (char*) malloc ((strlen(id) + 1) * sizeof (char));
+        strcpy (entry->ident, id);
+
         entry->categ = entryCateg;
-        entry->ident = id;
         entry->level = level;
         entry->next = NULL;
 
@@ -147,7 +197,6 @@ void loadFormalsSymbolTable(SymbEntryPtr entryList) {
 }
 
 void restoreSymbTable(SymbEntryPtr entryList) {
-        /* TODO: free allocated memory */
         entryList->next = NULL;
 }
 
@@ -163,12 +212,12 @@ int getCurrentLevel() {
         return level;
 }
 
-TypeDescrPtr getType(TreeNodePtr p) {
+TypeDescrPtr getType(char *id) {
 
         SymbEntryPtr nextEntry = symbolTable;
         while (nextEntry != NULL) {
 
-                if (nextEntry->categ == S_TYPE && strcmp (p->str, nextEntry->ident) == 0)
+                if (nextEntry->categ == S_TYPE && strcmp (id, nextEntry->ident) == 0)
                         return nextEntry->descr.typeDescr;
 
                 nextEntry = nextEntry->next;
@@ -242,7 +291,7 @@ TypeDescrPtr multiDimensionalType (TreeNodePtr p, TypeDescrPtr baseType) {
 
 TypeDescrPtr determineType(TreeNodePtr p) {
 
-        TypeDescrPtr baseType = getType(p);
+        TypeDescrPtr baseType = getType(p->str);
 
         if (p->next->categ == C_EMPTY) /* Variable's type is not an array */
                 return baseType;

@@ -171,6 +171,8 @@ void freeNode(TreeNodePtr node) {
         if (node->str)
                 free(node->str);
 
+        node->str = NULL;
+
         free (node);
 }
 

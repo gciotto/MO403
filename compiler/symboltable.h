@@ -91,6 +91,8 @@ TypeDescrPtr INTEGER, BOOLEAN;
 
 void dumpSymbolTable();
 void initSymbolTable();
+void freeSymbolTableFrom(SymbEntryPtr entry);
+void freeSymbolTable();
 SymbEntryPtr newSymbEntry(SymbCateg entryCateg, char* id);
 void insertSymbolTable (SymbEntryPtr newEntry);
 void saveSymbTable(SymbEntryPtr entryList);
@@ -101,7 +103,7 @@ void restoreSymbTable(SymbEntryPtr entryList);
 void incrCurrentLevel();
 void decrCurrentLevel();
 int getCurrentLevel();
-TypeDescrPtr getType(TreeNodePtr p);
+TypeDescrPtr getType(char *id);
 SymbEntryPtr getFunction(char* id);
 SymbEntryPtr getVariable(char* id);
 SymbEntryPtr searchId(char* id);
