@@ -27,7 +27,7 @@ void dumpNode(TreeNodePtr node, int tab_count) {
         if (node == NULL)
                 return;
 
-        // Prints tabs according to the tree's heigth.
+        // Prints tabs according to the tree's height.
         for (i = 0; i < tab_count; i++)
                 printf("\t");
 

@@ -6,6 +6,12 @@
 int readInstr = 0;
 Passage referenceParameter;
 
+/* Needed by the main function. Returns tree's stack height. */
+int stackHeight() {
+        return getStackHeight();
+}
+
+/* Processes the root node of the tree */
 void processProgram(void *p) {
 
         initSymbolTable();
@@ -14,10 +20,7 @@ void processProgram(void *p) {
         freeSymbolTable();
 }
 
-int stackHeight() {
-        return getStackHeight();
-}
-
+/* Processes function declaration nodes */
 void processFuncDecl(TreeNodePtr p, int ismain) {
 
         char* fname = p->comps[1]->str;
@@ -26,16 +29,19 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
 
         SymbEntryPtr formals, func, auxFormals;
 
+        /* Increases code static level */
         incrCurrentLevel();
 
         if (p->comps[0]->categ != C_EMPTY)
                 resType = getType(p->comps[0]->str);
 
+        /* Computes function parameters */
         formals = processFormals(p->comps[2], &lastDispl);
 
         if (resType != NULL)
                 lastDispl -= resType->size;
 
+        /* Allocates new S_FUNCTION entry */
         func = newSymbEntry(S_FUNCTION, fname);
         func->descr.functionDescr = (FunctionDescPtr) malloc (sizeof (FunctionDesc));
         func->descr.functionDescr->result = resType;
@@ -45,6 +51,7 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
 
         insertSymbolTable(func);
 
+        /* Saves symbol table state before appending the formal parameters */
         saveSymbTable(func);
 
         if (ismain) 
@@ -59,6 +66,7 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
 
         processTypes (p->comps[3]->comps[1]);
 
+        /* Computes the number of variables for this functions */
         currentDispl = processVariables (p->comps[3]->comps[2]);
 
         if (currentDispl > 0)
@@ -67,7 +75,9 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
         insertSymbolTable(formals);
 
         processFunctions(p->comps[3]->comps[3]);
-        setSavedState(func);
+
+        /* Restores saved symbol table state. This is needed in the case of nested function declarations */
+        saveSymbTable(func);
 
         processStatements(p->comps[3]->comps[4], currentDispl);
 
@@ -84,16 +94,20 @@ void processFuncDecl(TreeNodePtr p, int ismain) {
         else
                 genCode1("RTRN", -lastDispl - 4, "        end function");
 
+        /* Frees allocated memory for the used nodes */
         freeNode (p->comps[0]);
         freeNode (p->comps[1]);
         freeNode (p->comps[2]);
         freeNode (p->comps[3]);
 
+        /* Decreases code static level */
         decrCurrentLevel();
 
+        /* Removes all entries after the func entry */
         restoreSymbTable(func);
 }
 
+/* Processes declared labels */
 void processLabels (TreeNodePtr p) {
 
         if (p->categ == C_EMPTY) {
@@ -105,6 +119,7 @@ void processLabels (TreeNodePtr p) {
 
         while (invertedLabelList->categ != C_EMPTY) {
 
+                /* Gets and increases the label count */
                 int newLabel = nextLabel();
 
                 SymbEntryPtr newLabelEntry = newSymbEntry(S_LABEL, invertedLabelList->str);
@@ -112,6 +127,7 @@ void processLabels (TreeNodePtr p) {
                 newLabelEntry->descr.labelDescr->label = invertedLabelList->str;
                 newLabelEntry->descr.labelDescr->defined = newLabel;
 
+                /* Inserts label into the symbol table */
                 insertSymbolTable(newLabelEntry);
 
                 aux = invertedLabelList->next;
@@ -124,7 +140,7 @@ void processLabels (TreeNodePtr p) {
         freeNode (p);
 }
 
-
+/* Processes declared types */
 void processTypes (TreeNodePtr p) {
 
         if (p->categ == C_EMPTY) {
@@ -144,16 +160,18 @@ void processTypes (TreeNodePtr p) {
 
                 SymbEntryPtr newTypeEntry = newSymbEntry(S_TYPE, typeName);
 
+                /* Gets list for multidimensional types. Returns a single node with the base type */
                 TreeNodePtr invertedArrayList = invertList (invertedTypesList->comps[1]->comps[0]);
 
-                SymbEntryPtr baseTypeEntry = searchId (invertedArrayList->str);
-
-                if (baseTypeEntry == NULL)
-                        SemanticError(NULL);
-
                 newTypeEntry->descr.typeDescr = (TypeDescrPtr) malloc (sizeof (TypeDescr));
+
+                /* Checks if it's an array type */
                 newTypeEntry->descr.typeDescr = determineType(invertedArrayList);
 
+                if (newTypeEntry->descr.typeDescr == NULL)
+                        SemanticError(NULL);
+
+                /* Inserts new type into the symbol table */
                 insertSymbolTable(newTypeEntry);
 
                 aux = invertedTypesList->next;
@@ -165,6 +183,7 @@ void processTypes (TreeNodePtr p) {
         freeNode (p);
 }
 
+/* Processes declared variables */
 int processVariables (TreeNodePtr p) {
 
         if (p->categ == C_EMPTY) {
@@ -191,6 +210,7 @@ int processVariables (TreeNodePtr p) {
         return count;
 }
 
+/* Processes variable declarations */
 void processVarDecl(TreeNodePtr p, int* currentDispl) {
 
         TreeNodePtr vars = invertList(p->comps[0]->comps[0]),
@@ -219,6 +239,7 @@ void processVarDecl(TreeNodePtr p, int* currentDispl) {
         freeNode (vars); 
 }
 
+/* Processes function declarations */
 void processFunctions (TreeNodePtr p) {
 
         if (p->categ == C_EMPTY) {
@@ -233,6 +254,7 @@ void processFunctions (TreeNodePtr p) {
 
         while (invertedFunctionList->categ != C_EMPTY) {
 
+                /* Second parameter is ismain and is false */
                 processFuncDecl (invertedFunctionList, 0);
 
                 aux = invertedFunctionList->next;
@@ -246,6 +268,7 @@ void processFunctions (TreeNodePtr p) {
         freeNode (p);
 }
 
+/* Processes statements */
 void processStatements (TreeNodePtr p, int variableDispl) {
 
         char comment[20];
@@ -265,6 +288,7 @@ void processStatements (TreeNodePtr p, int variableDispl) {
 
         while (statements != NULL) {
 
+                /* A statement can be either a C_IDENT node or a unlabeled statement */
                 if (statements->comps[0]->categ == C_IDENT) {
                         labelEntry = searchId (statements->comps[0]->str);
                         if (labelEntry == NULL || labelEntry->categ != S_LABEL) {
@@ -288,6 +312,7 @@ void processStatements (TreeNodePtr p, int variableDispl) {
         freeNode (p);
 }
 
+/* Process a unlabeled statement */
 void processUnlabeledStatements (TreeNodePtr unlabeledStatement) {
 
         switch (unlabeledStatement->categ) {
@@ -319,17 +344,20 @@ void processUnlabeledStatements (TreeNodePtr unlabeledStatement) {
 
 } 
 
+/* Process an assignment */
 void processAssignment (TreeNodePtr p) {
 
         TreeNodePtr invertedVariableList = invertList (p->comps[0]);
         TypeDescrPtr exprType, varType;
         int isArray = 0;
 
+        /* Gets leftmost variable's symbol table entry */
         SymbEntryPtr variableEntry = searchId (invertedVariableList->comps[0]->str);
 
         if (variableEntry == NULL)
                 SemanticError(NULL);                
 
+        /* Retrieves correct type for it */
         switch  (variableEntry->categ) {
 
                 case S_VARIABLE:
@@ -340,6 +368,7 @@ void processAssignment (TreeNodePtr p) {
                         break;
         }
 
+        /* Handles array types */
         if (varType->constr == T_ARRAY) {
 
                 isArray = 1;
@@ -369,6 +398,7 @@ void processAssignment (TreeNodePtr p) {
         freeNode (p->comps[1]);
 }
 
+/* Processes a function call statement */
 TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
 
         TreeNodePtr identifier = functionCall->comps[0],
@@ -377,10 +407,11 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
                     aux;
 
         SymbEntryPtr functionEntry = searchId(identifier->str),
-                     functionParams = functionEntry->descr.functionDescr->params;
+                     functionParams;
 
         TypeDescrPtr result;
 
+        /* Checks if the symbol table entry is a S_FUNCTION or a function parameter */
         if (functionEntry->categ == S_FUNCTION) {
                 functionParams = functionEntry->descr.functionDescr->params;
                 result = functionEntry->descr.functionDescr->result;
@@ -390,12 +421,13 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
                 result = functionEntry->descr.paramDescr->type->descr.FunctionType.result;
         }
 
-
+        /* Allocates space for the return value */
         if (functionEntry != READ_FUNCTION && result != NULL)
                 genCode1("ALOC", result->size, "        result");
 
         while (invertedExpressionList->categ != C_EMPTY) {
 
+                /* Two special cases: write and read functions */
                 if (functionEntry == WRITE_FUNCTION) {
 
                         referenceParameter = P_VALUE;
@@ -436,11 +468,12 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
 
         if (functionEntry != READ_FUNCTION && functionEntry != WRITE_FUNCTION) {
 
+                /* Checks for compatibility issues */
                 if (functionParams != NULL && functionParams->categ == S_PARAMETER) { /* The function requires more parameters */
-                        printf ("CZXC \n");
                         SemanticError(NULL);
                 }
 
+                /* Checks the symbol table entry category and generates the right calling instruction */
                 if (functionEntry->categ == S_FUNCTION) {
                         genLabel2 ("CFUN", functionEntry->descr.functionDescr->entLabel, getCurrentLevel(), "");
                 }
@@ -457,6 +490,7 @@ TypeDescrPtr processFunctionCall (TreeNodePtr functionCall) {
 
 }
 
+/* Process a goto statement */
 void processGoto (TreeNodePtr p) {
 
         char comment [20];
@@ -472,13 +506,14 @@ void processGoto (TreeNodePtr p) {
         freeNode (p->comps[0]);
 }
 
+/* Process a return statement */
 void processReturn (TreeNodePtr p) {
 
+        /* Gets the function which is currently being processed */
         SymbEntryPtr funcEntry = getSavedState();
         int result = 0;
 
         if (funcEntry == NULL || funcEntry->categ != S_FUNCTION) {
-                printf ("fadasdas\n");
                 SemanticError(NULL);
         }
 
@@ -495,6 +530,7 @@ void processReturn (TreeNodePtr p) {
         freeNode (p->comps[0]);
 }
 
+/* Process an if ... else ... statement */
 void processConditional (TreeNodePtr p) {
 
         char comment[20];
@@ -505,6 +541,7 @@ void processConditional (TreeNodePtr p) {
 
         int elseLabel = nextLabel (), endLabel;
 
+        /* Checks if an else part exists */
         if (p->comps[2]->categ != C_EMPTY)
                 endLabel = nextLabel ();
 
@@ -513,6 +550,7 @@ void processConditional (TreeNodePtr p) {
 
         processCompound (p->comps[1]);
 
+        /* Checks if an else part exists */
         if (p->comps[2]->categ != C_EMPTY) {
                 genLabel1 ("JUMP", endLabel, "");
                 sprintf (comment, "%17s", "else");
@@ -534,6 +572,7 @@ void processConditional (TreeNodePtr p) {
         freeNode (p->comps[2]);
 }
 
+/* Process a while statement */
 void processLoop (TreeNodePtr p) {
 
         char comment[25];
@@ -559,6 +598,7 @@ void processLoop (TreeNodePtr p) {
         freeNode (p->comps[1]);
 }
 
+/* Process compounds */
 void processCompound (TreeNodePtr p) {
 
         TreeNodePtr invertedCompoundList = invertList (p->comps[0]), aux;
@@ -575,6 +615,7 @@ void processCompound (TreeNodePtr p) {
 
 }
 
+/* Processes an expression */
 TypeDescrPtr processExpr(TreeNodePtr p) {
         
         if (p->categ == C_EMPTY)
@@ -582,6 +623,7 @@ TypeDescrPtr processExpr(TreeNodePtr p) {
 
         TypeDescrPtr simpleExpr = processSimpleExpr (p->comps[0]);
 
+        /* Checks if there is a relational operator. In the positive case, generates the right code according to the operator */
         if (p->comps[1]->categ != C_EMPTY) {
 
                 TypeDescrPtr simpleExpr2 = processSimpleExpr (p->comps[1]->comps[1]);
@@ -618,6 +660,7 @@ TypeDescrPtr processExpr(TreeNodePtr p) {
         return simpleExpr;
 }
 
+/* Processes a simple expression */
 TypeDescrPtr processSimpleExpr(TreeNodePtr p) {
 
         TreeNodePtr unarySimpleOp = p->comps[0],
@@ -632,6 +675,7 @@ TypeDescrPtr processSimpleExpr(TreeNodePtr p) {
         freeNode (invertedTermList);
         invertedTermList = aux;
 
+        /* Checks if there exists an unary operator */
         if (unarySimpleOp->categ != C_EMPTY) {
 
                 if (!compatibleType(result, INTEGER))
@@ -641,6 +685,7 @@ TypeDescrPtr processSimpleExpr(TreeNodePtr p) {
                         genCode0("NEGT", "");
         }
 
+        /* Generates codes for additive operators */
         while (invertedTermList->categ != C_EMPTY) {
 
                 if (invertedTermList->categ == C_ADDITIVE_OPERATOR_TERM) {
@@ -661,6 +706,7 @@ TypeDescrPtr processSimpleExpr(TreeNodePtr p) {
         return result;
 }
 
+/* Processes a term */
 TypeDescrPtr processTerm (TreeNodePtr p) {
 
         TreeNodePtr invertedFactorList = invertList (p->comps[0]), aux;
@@ -685,6 +731,7 @@ TypeDescrPtr processTerm (TreeNodePtr p) {
 
 }
 
+/* Processes a multiplicative factor */
 TypeDescrPtr processMultiplicativeFactor(TreeNodePtr p) {
 
         TypeDescrPtr argument2 = processFactor (p->comps[1]);
@@ -705,6 +752,7 @@ TypeDescrPtr processMultiplicativeFactor(TreeNodePtr p) {
 
 }
 
+/* Processes an additive term */
 TypeDescrPtr processAdditiveTerm (TreeNodePtr p) {
 
         TypeDescrPtr argument2 = processTerm (p->comps[1]);
@@ -725,6 +773,7 @@ TypeDescrPtr processAdditiveTerm (TreeNodePtr p) {
 
 }
 
+/* Generates code for array indexes */
 TypeDescrPtr processArray (TreeNodePtr p, TypeDescrPtr varType) {
 
         TypeDescrPtr exprType;
@@ -734,6 +783,7 @@ TypeDescrPtr processArray (TreeNodePtr p, TypeDescrPtr varType) {
 
         while (p->categ != C_EMPTY) {
 
+                /* Generates code for the expression inside the [] */
                 exprType = processExpr (p);
                 if (!compatibleType (exprType, INTEGER))
                         SemanticError(NULL);
@@ -752,6 +802,7 @@ TypeDescrPtr processArray (TreeNodePtr p, TypeDescrPtr varType) {
         return varType;
 }
 
+/* Processes a factor statement */
 TypeDescrPtr processFactor (TreeNodePtr p) {
 
         SymbEntryPtr variableEntry;
@@ -760,11 +811,14 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
         switch (invertedFactorList->categ) {
                 case C_INTEGER:
+                        /* Generates code for an integer */
                         genCode1 ("LDCT", strtol(p->comps[0]->str, NULL, 10), "");
                         freeNode (p->comps[0]);
                         return INTEGER;
 
                 case C_VARIABLE:
+
+                        /* Generates code for a variable */
 
                         variableEntry = searchId (invertedFactorList->comps[0]->str);
 
@@ -773,6 +827,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                         if (variableEntry == NULL)
                                 SemanticError(NULL);
 
+                        /* Constant variable: true or false reserved keywords */
                         if (variableEntry->categ == S_CONST) {
 
                                 if (variableEntry == FALSE || variableEntry == TRUE) {
@@ -784,13 +839,14 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                                 }
                         }
                         else if (variableEntry->categ == S_VARIABLE) {
+                                /* one-dimensional variables */
                                 if (variableEntry->descr.variableDescr->type->constr != T_ARRAY) {
                                         if (referenceParameter != P_VARIABLE)
                                                 genCode2 (readInstr ? "STVL" : "LDVL", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
                                         else
                                                 genCode2 ("LADR", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
                                 }
-                                else { /* ARRAY */
+                                else { /* ARRAY variables */
 
                                         genCode2 ("LADR", variableEntry->level, variableEntry->descr.variableDescr->displ, "");
                                         
@@ -809,12 +865,14 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                                 }
                         }
                         else if (variableEntry->categ == S_PARAMETER) {
+                                /* Parameter variables */
 
                                 if (variableEntry->descr.paramDescr->type->constr != T_ARRAY) {
+                                        /* one-dimensional parameters */
                                         Passage pass_method = variableEntry->descr.paramDescr->pass;
                                         genCode2 (pass_method == P_VALUE ? "LDVL" : "LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
                                 }
-                                else if (variableEntry->descr.paramDescr->type->constr == T_ARRAY) { /* ARRAY */
+                                else if (variableEntry->descr.paramDescr->type->constr == T_ARRAY) { /* ARRAY parameters */
                                         Passage pass_method = variableEntry->descr.paramDescr->pass;
                                         if (pass_method == P_VALUE) {
                                                 genCode2 ("LADR", variableEntry->level, variableEntry->descr.paramDescr->displ, "");
@@ -836,6 +894,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                                 }
                         }
                         else if (variableEntry->categ == S_FUNCTION) {
+                                /* functions passed as parameters */
 
                                 TypeDescrPtr functionType = (TypeDescrPtr) malloc (sizeof (TypeDescr));
                                 functionType->constr = T_FUNCTION;
@@ -857,6 +916,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
                 case C_EXPRESSION:
 
+                        /* Processes an expression */
                         aux = processExpr (invertedFactorList);
 
                         freeNode (invertedFactorList);
@@ -865,6 +925,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
                 case C_FACTOR:
 
+                        /* Processes a factor */
                         aux = processFactor (invertedFactorList);
 
                         freeNode (invertedFactorList);
@@ -878,6 +939,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
                 case C_FUNCTION_CALL:
 
+                        /* Processes a function call */
                         aux = processFunctionCall (invertedFactorList);
 
                         freeNode (invertedFactorList);
@@ -887,6 +949,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
 
 }
 
+/* Generates symbol table entries for the formal parameters of a given function */
 SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl) {
 
         /* p's category should be C_FORMAL_PARAMETERS */
@@ -997,6 +1060,8 @@ SymbEntryPtr processFormals(TreeNodePtr p, int* lastDispl) {
 
         return formalParameterList;
 }
+
+/** Code generation functions **/
 
 void genCode0 (char* instr, char* comment) {
         printf ("%10s%s\n", instr, comment);

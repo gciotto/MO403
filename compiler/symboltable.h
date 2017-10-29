@@ -1,3 +1,11 @@
+/**
+* symboltable.h
+* Function prototypes to handle everything related to the compiler's symbol table.
+*
+* Gustavo CIOTTO PINTON
+* October 2017 - MO403 - Implementation of Programming Languages 
+**/
+
 #ifndef _SYMBOLTABLE_H_
 #define _SYMBOLTABLE_H_
 
@@ -26,6 +34,7 @@ typedef enum {
 struct ParameterDesc;
 struct _symbEntry;
 
+/* Types descriptor */
 typedef struct TypeDescr {
         TypeConstr constr;
         int size;
@@ -43,6 +52,7 @@ typedef struct TypeDescr {
         } descr;
 } TypeDescr, *TypeDescrPtr;
 
+/* Descriptor definitions */
 typedef struct {
         int value;
         TypeDescrPtr type;
@@ -62,7 +72,6 @@ typedef struct ParameterDesc {
 typedef struct {
         int displ, entLabel, retLabel;
         TypeDescrPtr result;
-        /* ParameterDescPtr params; */
         struct _symbEntry *params;
 } FunctionDesc, *FunctionDescPtr;
 
@@ -71,6 +80,7 @@ typedef struct {
         int defined;
 } LabelDesc, *LabelDescPtr;
 
+/* Symbol table entry structure */
 typedef struct _symbEntry {
         SymbCateg categ;
         char *ident;
@@ -86,9 +96,11 @@ typedef struct _symbEntry {
         } descr;
 } SymbEntry, *SymbEntryPtr;
 
+/* Primitive types, constants and functions supported by the SL  */
 SymbEntryPtr WRITE_FUNCTION, READ_FUNCTION, FALSE, TRUE;
 TypeDescrPtr INTEGER, BOOLEAN;
 
+/* Function prototypes */
 void dumpSymbolTable();
 void initSymbolTable();
 void freeSymbolTableFrom(SymbEntryPtr entry);
@@ -97,7 +109,6 @@ SymbEntryPtr newSymbEntry(SymbCateg entryCateg, char* id);
 void insertSymbolTable (SymbEntryPtr newEntry);
 void saveSymbTable(SymbEntryPtr entryList);
 SymbEntryPtr getSavedState();
-void setSavedState(SymbEntryPtr entry);
 void loadFormalsSymbolTable(SymbEntryPtr entryList);
 void restoreSymbTable(SymbEntryPtr entryList);
 void incrCurrentLevel();
