@@ -902,7 +902,7 @@ TypeDescrPtr processFactor (TreeNodePtr p) {
                                 functionType->descr.FunctionType.result = variableEntry->descr.functionDescr->result;
                                 functionType->descr.FunctionType.params = variableEntry->descr.functionDescr->params;
 
-                                genLabel2 ("LGAD", variableEntry->descr.functionDescr->entLabel, getCurrentLevel(), "");
+                                genLabel2 ("LGAD", variableEntry->descr.functionDescr->entLabel, variableEntry->level, "");
 
                                 freeNode (invertedFactorList);
 
